@@ -61,12 +61,44 @@ if ($album_is_protected) {
 }
 
 // 处理文件上传（仅管理员）
-if ($is_admin && isset($_POST['upload']) && !empty($_FILES['image']['name'])) {
-    $upload_path = $current_dir . '/' . basename($_FILES['image']['name']);
-    if (move_uploaded_file($_FILES['image']['tmp_name'], $upload_path)) {
-        $message = '文件上传成功';
+if ($is_admin && isset($_POST['upload']) && !empty($_FILES['image']['name'][0])) {
+    $uploaded_count = 0;
+    $failed_count = 0;
+    
+    // 处理多个上传文件
+    for ($i = 0; $i < count($_FILES['image']['name']); $i++) {
+        $file_name = $_FILES['image']['name'][$i];
+        $file_tmp = $_FILES['image']['tmp_name'][$i];
+        $file_error = $_FILES['image']['error'][$i];
+        
+        if ($file_error === UPLOAD_ERR_OK) {
+            $upload_path = $current_dir . '/' . basename($file_name);
+            
+            // 检查文件类型（可选）
+            $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $file_info = @getimagesize($file_tmp);
+            
+            if ($file_info && in_array($file_info['mime'], $allowed_types)) {
+                if (move_uploaded_file($file_tmp, $upload_path)) {
+                    $uploaded_count++;
+                } else {
+                    $failed_count++;
+                }
+            } else {
+                $failed_count++;
+            }
+        } else {
+            $failed_count++;
+        }
+    }
+    
+    if ($uploaded_count > 0) {
+        $message = "成功上传 {$uploaded_count} 个文件";
+        if ($failed_count > 0) {
+            $message .= "，{$failed_count} 个文件上传失败";
+        }
     } else {
-        $message = '文件上传失败';
+        $message = "所有文件上传失败";
     }
 }
 
@@ -264,6 +296,8 @@ $all_dirs = getAllDirectories($config['upload_dir']);
         .password-form { max-width: 300px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
         .album-lock { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.5); color: white; padding: 2px 5px; border-radius: 3px; }
         .gallery-item { position: relative; }
+        .upload-preview { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 10px; }
+        .upload-preview img { max-height: 100px; border: 1px solid #ddd; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -341,11 +375,12 @@ $all_dirs = getAllDirectories($config['upload_dir']);
                         <!-- 文件上传 -->
                         <div class="upload-form">
                             <h4>上传图片</h4>
-                            <form method="post" enctype="multipart/form-data">
+                            <form method="post" enctype="multipart/form-data" id="uploadForm">
                                 <div class="form-group">
-                                    <label for="image">选择图片:</label>
-                                    <input type="file" id="image" name="image" required>
+                                    <label for="image">选择图片 (可多选):</label>
+                                    <input type="file" id="image" name="image[]" multiple accept="image/*" required>
                                 </div>
+                                <div class="upload-preview" id="uploadPreview"></div>
                                 <div class="form-group">
                                     <button type="submit" name="upload">上传</button>
                                 </div>
@@ -495,5 +530,29 @@ $all_dirs = getAllDirectories($config['upload_dir']);
             <?php endif; ?>
         <?php endif; ?>
     </div>
+    
+    <script>
+        // 图片预览功能
+        document.getElementById('image').addEventListener('change', function(e) {
+            const preview = document.getElementById('uploadPreview');
+            preview.innerHTML = '';
+            
+            const files = e.target.files;
+            if (files) {
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.alt = file.name;
+                        preview.appendChild(img);
+                    }
+                    
+                    reader.readAsDataURL(file);
+                });
+            }
+        });
+    </script>
 </body>
 </html>    
