@@ -1,7 +1,17 @@
 # Photo_Album_Management
 
+
+1.1.5
+修复漏洞
+界面美化
+预览图
+<img src="https://raw.githubusercontent.com/mickeywaley/Photo_Album_Management/refs/heads/main/1.1.5.png" alt="Mobile wallpaper"   />
+-------------------------
+
+-------------------------
+1.1.4
 相册管理
--------------
+-------------------------
 这个 PHP 程序实现了一个完整的相册管理系统，支持图片上传、浏览、分类管理以及密码保护等功能。系统采用模块化设计，主要包含以下几个核心功能模块：
 
 1. 系统基础设置
