@@ -296,208 +296,333 @@ $all_dirs = getAllDirectories($config['upload_dir']);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>相册管理系统</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; max-width: 1200px; margin: 0 auto; }
-        .container { margin: 0 auto; }
-        .header { background: #f5f5f5; padding: 10px 20px; margin-bottom: 20px; border-radius: 5px; }
-        .header h1 { margin: 0; }
-        .breadcrumb { margin: 10px 0; }
-        .breadcrumb a { color: #007BFF; text-decoration: none; }
-        .breadcrumb a:hover { text-decoration: underline; }
-        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
-        .gallery-item { border: 1px solid #ddd; border-radius: 5px; overflow: hidden; }
-        .gallery-item img { width: 100%; height: 150px; object-fit: cover; }
-        .gallery-item .item-info { padding: 10px; }
-        .gallery-item .item-name { font-weight: bold; }
-        .gallery-item .item-details { font-size: 0.8em; color: #666; margin-top: 3px; }
-        .gallery-item .item-actions { margin-top: 5px; font-size: 0.9em; }
-        .gallery-item .item-actions a { color: #007BFF; margin-right: 10px; }
-        .admin-panel { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }
-        .admin-panel h3 { margin-top: 0; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; }
-        .form-group input[type="text"], .form-group input[type="password"], .form-group select { 
-            width: 100%; padding: 8px; box-sizing: border-box; 
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- Tailwind配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',      // 蓝色主色调
+                        secondary: '#10B981',    // 绿色辅助色
+                        danger: '#EF4444',       // 红色危险色
+                        neutral: {
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                        'card-hover': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                    }
+                }
+            }
         }
-        .form-group button { padding: 8px 15px; background: #007BFF; color: white; border: none; border-radius: 3px; cursor: pointer; }
-        .form-group button:hover { background: #0056b3; }
-        .login-form { max-width: 300px; margin: 50px auto; }
-        .message { padding: 10px; margin: 10px 0; border-radius: 3px; }
-        .message.success { background: #d4edda; color: #155724; }
-        .message.error { background: #f8d7da; color: #721c24; }
-        .logout { float: right; }
-        .password-form { max-width: 300px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
-        .album-lock { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.5); color: white; padding: 2px 5px; border-radius: 3px; }
-        .gallery-item { position: relative; }
-        .upload-preview { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 10px; }
-        .upload-preview img { max-height: 100px; border: 1px solid #ddd; border-radius: 3px; }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .album-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 1.5rem;
+            }
+            .card-transition {
+                transition: all 0.3s ease;
+            }
+            .scale-hover {
+                transition: transform 0.2s ease-in-out;
+            }
+            .scale-hover:hover {
+                transform: scale(1.03);
+            }
+            .backdrop-blur {
+                backdrop-filter: blur(8px);
+            }
+        }
     </style>
 </head>
-<body>
-    <div class="container">
-        <!-- 登录表单（仅当用户点击登录按钮时显示） -->
-        <?php if ($is_admin): ?>
-            <div class="header">
-                <h1>相册管理系统</h1>
-                <div class="logout"><a href="?logout=1">退出登录</a></div>
+<body class="bg-neutral-100 min-h-screen text-neutral-800 font-sans">
+    <div class="container mx-auto px-4 py-6 max-w-7xl">
+        <!-- 顶部导航 -->
+        <header class="mb-8">
+            <div class="bg-white rounded-xl shadow-md p-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-primary">
+                    <i class="fa fa-image mr-2"></i>相册管理系统
+                </h1>
+                
+                <?php if ($is_admin): ?>
+                    <a href="?logout=1" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center">
+                        <i class="fa fa-sign-out mr-2"></i>退出登录
+                    </a>
+                <?php else: ?>
+                    <a href="?login=1" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center">
+                        <i class="fa fa-lock mr-2"></i>管理员登录
+                    </a>
+                <?php endif; ?>
             </div>
-        <?php else: ?>
-            <div class="header">
-                <h1>相册浏览</h1>
-                <div class="logout"><a href="?login=1">管理员登录</a></div>
-            </div>
-        <?php endif; ?>
-        
-        <!-- 面包屑导航 -->
-        <div class="breadcrumb">
-            <a href="?">首页</a>
-            <?php
-            $current_path = '';
-            $path_parts = explode('/', substr($current_dir, strlen($config['upload_dir']) + 1));
             
-            foreach ($path_parts as $part) {
-                if (empty($part)) continue;
-                $current_path .= '/' . $part;
-                echo ' &raquo; <a href="?dir=' . urlencode(ltrim($current_path, '/')) . '">' . htmlspecialchars($part) . '</a>';
-            }
-            ?>
-        </div>
+            <!-- 面包屑导航 -->
+            <div class="mt-4 flex items-center text-sm text-neutral-600">
+                <a href="?" class="text-primary hover:underline flex items-center">
+                    <i class="fa fa-home mr-1"></i> 首页
+                </a>
+                <?php
+                $current_path = '';
+                $path_parts = explode('/', substr($current_dir, strlen($config['upload_dir']) + 1));
+                
+                foreach ($path_parts as $part) {
+                    if (empty($part)) continue;
+                    $current_path .= '/' . $part;
+                    echo '<span class="mx-2 text-neutral-400">/</span>';
+                    echo '<a href="?dir=' . urlencode(ltrim($current_path, '/')) . '" class="text-primary hover:underline">' . htmlspecialchars($part) . '</a>';
+                }
+                ?>
+            </div>
+        </header>
         
         <!-- 消息提示 -->
         <?php if (isset($message)): ?>
-            <div class="message <?php echo (strpos($message, '成功') !== false) ? 'success' : 'error'; ?>">
-                <?php echo $message; ?>
+            <div class="mb-6 p-4 rounded-lg <?php echo (strpos($message, '成功') !== false) ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'; ?>">
+                <div class="flex items-center">
+                    <i class="fa fa-<?php echo (strpos($message, '成功') !== false) ? 'check-circle' : 'exclamation-circle'; ?> mr-3 text-xl"></i>
+                    <p><?php echo $message; ?></p>
+                </div>
             </div>
         <?php endif; ?>
         
         <!-- 登录表单（仅当用户点击登录链接时显示） -->
         <?php if (isset($_GET['login']) && !$is_admin): ?>
-            <div class="login-form">
-                <h2>管理员登录</h2>
-                <form method="post">
-                    <div class="form-group">
-                        <label for="password">密码:</label>
-                        <input type="password" id="password" name="password" required>
-                    </div>
-                    <div class="form-group">
-                        <button type="submit" name="login">登录</button>
-                    </div>
-                </form>
+            <div class="max-w-md mx-auto">
+                <div class="bg-white rounded-xl shadow-lg p-6 border border-neutral-200">
+                    <h2 class="text-xl font-bold mb-4 text-center">管理员登录</h2>
+                    <form method="post" class="space-y-4">
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-neutral-700 mb-1">密码:</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-500">
+                                    <i class="fa fa-lock"></i>
+                                </span>
+                                <input type="password" id="password" name="password" required 
+                                    class="w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                                    placeholder="请输入管理员密码">
+                            </div>
+                        </div>
+                        <div>
+                            <button type="submit" name="login" 
+                                class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center">
+                                <i class="fa fa-sign-in mr-2"></i> 登录
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         <?php else: ?>
             <!-- 相册密码表单（如果需要） -->
             <?php if ($album_is_protected && !$album_access_granted): ?>
-                <div class="password-form">
-                    <h3>需要密码</h3>
-                    <form method="post">
-                        <div class="form-group">
-                            <label for="album_password">请输入相册密码:</label>
-                            <input type="password" id="album_password" name="album_password" required>
-                        </div>
-                        <div class="form-group">
-                            <button type="submit">提交</button>
-                        </div>
-                    </form>
+                <div class="max-w-md mx-auto">
+                    <div class="bg-white rounded-xl shadow-lg p-6 border border-neutral-200">
+                        <h2 class="text-xl font-bold mb-4 text-center">需要密码</h2>
+                        <p class="text-neutral-600 mb-4 text-center">此相册受密码保护，请输入密码访问。</p>
+                        <form method="post" class="space-y-4">
+                            <div>
+                                <label for="album_password" class="block text-sm font-medium text-neutral-700 mb-1">相册密码:</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-500">
+                                        <i class="fa fa-key"></i>
+                                    </span>
+                                    <input type="password" id="album_password" name="album_password" required 
+                                        class="w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                                        placeholder="请输入相册密码">
+                                </div>
+                            </div>
+                            <div>
+                                <button type="submit" 
+                                    class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center">
+                                    <i class="fa fa-unlock-alt mr-2"></i> 解锁
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             <?php else: ?>
                 <!-- 管理面板（仅对管理员可见） -->
                 <?php if ($is_admin): ?>
-                    <div class="admin-panel">
-                        <h3>管理操作</h3>
+                    <div class="bg-white rounded-xl shadow-md p-6 mb-8 border border-neutral-200">
+                        <h3 class="text-lg font-bold mb-4 flex items-center">
+                            <i class="fa fa-cog mr-2 text-primary"></i> 管理操作
+                        </h3>
                         
-                        <!-- 文件上传 -->
-                        <div class="upload-form">
-                            <h4>上传图片</h4>
-                            <form method="post" enctype="multipart/form-data" id="uploadForm">
-                                <div class="form-group">
-                                    <label for="image">选择图片 (可多选):</label>
-                                    <input type="file" id="image" name="image[]" multiple accept="image/*" required>
-                                </div>
-                                <div class="upload-preview" id="uploadPreview"></div>
-                                <div class="form-group">
-                                    <button type="submit" name="upload">上传</button>
-                                </div>
-                            </form>
-                        </div>
-                        
-                        <!-- 新建目录 -->
-                        <div class="new-dir-form">
-                            <h4>新建目录</h4>
-                            <form method="post">
-                                <div class="form-group">
-                                    <label for="new_dir_name">目录名称:</label>
-                                    <input type="text" id="new_dir_name" name="new_dir_name" required>
-                                </div>
-                                <div class="form-group">
-                                    <button type="submit" name="new_dir">创建</button>
-                                </div>
-                            </form>
-                        </div>
-                        
-                        <!-- 设置相册密码 -->
-                        <div class="password-setting">
-                            <h4>设置相册密码</h4>
-                            <form method="post">
-                                <div class="form-group">
-                                    <label for="album_password">密码 (留空则移除密码):</label>
-                                    <input type="password" id="album_password" name="album_password">
-                                </div>
-                                <div class="form-group">
-                                    <button type="submit" name="set_album_password">设置</button>
-                                </div>
-                            </form>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <!-- 文件上传 -->
+                            <div class="border border-neutral-200 rounded-lg p-4 hover:border-primary transition-colors">
+                                <h4 class="font-medium mb-3 flex items-center text-primary">
+                                    <i class="fa fa-upload mr-2"></i> 上传图片
+                                </h4>
+                                <form method="post" enctype="multipart/form-data" id="uploadForm">
+                                    <div class="mb-3">
+                                        <label for="image" class="block text-sm text-neutral-600 mb-1">选择图片 (可多选):</label>
+                                        <div class="relative">
+                                            <div class="flex items-center justify-center w-full">
+                                                <label for="image" class="flex flex-col items-center justify-center w-full h-32 border-2 border-neutral-300 border-dashed rounded-lg cursor-pointer bg-neutral-50 hover:bg-neutral-100 transition-colors">
+                                                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                                        <i class="fa fa-cloud-upload text-2xl text-neutral-400 mb-2"></i>
+                                                        <p class="mb-2 text-sm text-neutral-500"><span class="font-semibold">点击上传文件</span> 或拖放</p>
+                                                        <p class="text-xs text-neutral-400">支持 JPG, PNG, GIF, WebP</p>
+                                                    </div>
+                                                    <input id="image" name="image[]" type="file" class="hidden" multiple accept="image/*" required />
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="upload-preview flex flex-wrap gap-2 mb-3 min-h-[50px]"></div>
+                                    <button type="submit" name="upload" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center">
+                                        <i class="fa fa-check mr-2"></i> 确认上传
+                                    </button>
+                                </form>
+                            </div>
+                            
+                            <!-- 新建目录 -->
+                            <div class="border border-neutral-200 rounded-lg p-4 hover:border-primary transition-colors">
+                                <h4 class="font-medium mb-3 flex items-center text-primary">
+                                    <i class="fa fa-folder mr-2"></i> 新建目录
+                                </h4>
+                                <form method="post">
+                                    <div class="mb-3">
+                                        <label for="new_dir_name" class="block text-sm text-neutral-600 mb-1">目录名称:</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-500">
+                                                <i class="fa fa-folder-o"></i>
+                                            </span>
+                                            <input type="text" id="new_dir_name" name="new_dir_name" required 
+                                                class="w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                                                placeholder="请输入目录名称">
+                                        </div>
+                                    </div>
+                                    <button type="submit" name="new_dir" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center">
+                                        <i class="fa fa-plus mr-2"></i> 创建目录
+                                    </button>
+                                </form>
+                            </div>
+                            
+                            <!-- 设置相册密码 -->
+                            <div class="border border-neutral-200 rounded-lg p-4 hover:border-primary transition-colors">
+                                <h4 class="font-medium mb-3 flex items-center text-primary">
+                                    <i class="fa fa-lock mr-2"></i> 相册密码设置
+                                </h4>
+                                <form method="post">
+                                    <div class="mb-3">
+                                        <label for="album_password" class="block text-sm text-neutral-600 mb-1">密码 (留空则移除密码):</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-500">
+                                                <i class="fa fa-key"></i>
+                                            </span>
+                                            <input type="password" id="album_password" name="album_password" 
+                                                class="w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                                                placeholder="请输入密码（留空移除）">
+                                        </div>
+                                    </div>
+                                    <button type="submit" name="set_album_password" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center">
+                                        <i class="fa fa-save mr-2"></i> 保存设置
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 <?php endif; ?>
                 
                 <!-- 相册内容 -->
-                <div class="gallery">
+                <div class="album-grid">
                     <!-- 显示子目录 -->
                     <?php foreach ($dirs as $dir): 
                         $dir_path = $current_dir . '/' . $dir;
                         $dir_is_protected = file_exists($dir_path . '/.password');
                         $preview_image = getDirectoryPreview($dir_path);
                     ?>
-                        <div class="gallery-item">
-                            <?php if ($dir_is_protected): ?>
-                                <div class="album-lock">🔒</div>
-                            <?php endif; ?>
-                            <a href="?dir=<?php echo urlencode(substr($dir_path, strlen($config['upload_dir']) + 1)); ?>">
-                                <?php if ($preview_image): ?>
-                                    <img src="<?php echo htmlspecialchars($preview_image); ?>" alt="<?php echo htmlspecialchars($dir); ?>">
-                                <?php else: ?>
-                                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='100%25' height='100%25' fill='%23f0f0f0'/%3E%3Ctext x='100' y='75' text-anchor='middle' dominant-baseline='middle' font-family='Arial' font-size='16' fill='%23666'%3EDirectory%3C/text%3E%3C/svg%3E" alt="目录图标">
+                        <div class="bg-white rounded-xl shadow-card overflow-hidden card-transition scale-hover">
+                            <div class="relative h-48 overflow-hidden">
+                                <?php if ($dir_is_protected): ?>
+                                    <div class="absolute top-3 right-3 bg-black/50 backdrop-blur text-white px-2 py-1 rounded-full text-xs flex items-center">
+                                        <i class="fa fa-lock mr-1"></i> 加密
+                                    </div>
                                 <?php endif; ?>
-                            </a>
-                            <div class="item-info">
-                                <div class="item-name"><?php echo htmlspecialchars($dir); ?></div>
-                                <div class="item-actions">
-                                    <a href="?dir=<?php echo urlencode(substr($dir_path, strlen($config['upload_dir']) + 1)); ?>">查看</a>
+                                <a href="?dir=<?php echo urlencode(substr($dir_path, strlen($config['upload_dir']) + 1)); ?>">
+                                    <?php if ($preview_image): ?>
+                                        <img src="<?php echo htmlspecialchars($preview_image); ?>" alt="<?php echo htmlspecialchars($dir); ?>" 
+                                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-105">
+                                    <?php else: ?>
+                                        <div class="w-full h-full bg-neutral-100 flex items-center justify-center">
+                                            <i class="fa fa-folder text-5xl text-neutral-300"></i>
+                                        </div>
+                                    <?php endif; ?>
+                                </a>
+                            </div>
+                            <div class="p-4">
+                                <div class="flex justify-between items-center mb-2">
+                                    <h3 class="font-semibold text-lg"><?php echo htmlspecialchars($dir); ?></h3>
+                                    <span class="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                                        <i class="fa fa-folder-o mr-1"></i> 目录
+                                    </span>
+                                </div>
+                                <div class="flex flex-wrap gap-1">
+                                    <a href="?dir=<?php echo urlencode(substr($dir_path, strlen($config['upload_dir']) + 1)); ?>" 
+                                        class="text-sm text-primary hover:underline flex items-center">
+                                        <i class="fa fa-eye mr-1"></i> 查看
+                                    </a>
                                     
                                     <!-- 目录操作表单（仅对管理员可见） -->
                                     <?php if ($is_admin): ?>
-                                        <form method="post" style="display:inline;">
-                                            <input type="hidden" name="old_name" value="<?php echo htmlspecialchars($dir); ?>">
-                                            <input type="text" name="new_name" value="<?php echo htmlspecialchars($dir); ?>" size="8">
-                                            <button type="submit" name="rename" style="padding: 2px 5px;">重命名</button>
-                                        </form>
-                                        
-                                        <form method="post" style="display:inline;" onsubmit="return confirm('确定要删除此目录及其所有内容吗？');">
-                                            <input type="hidden" name="delete_path" value="<?php echo htmlspecialchars($dir); ?>">
-                                            <button type="submit" name="delete" style="padding: 2px 5px;">删除</button>
-                                        </form>
-                                        
-                                        <form method="post" style="display:inline;">
-                                            <input type="hidden" name="move_source" value="<?php echo htmlspecialchars($dir); ?>">
-                                            <select name="move_target" style="padding: 2px;">
-                                                <?php foreach ($all_dirs as $d): 
-                                                    if ($d == substr($dir_path, strlen($config['upload_dir']) + 1)) continue;
-                                                ?>
-                                                    <option value="<?php echo htmlspecialchars($d); ?>"><?php echo htmlspecialchars($d); ?></option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <button type="submit" name="move" style="padding: 2px 5px;">移动</button>
-                                        </form>
+                                        <div class="flex items-center gap-1">
+                                            <form method="post" class="inline-block">
+                                                <input type="hidden" name="old_name" value="<?php echo htmlspecialchars($dir); ?>">
+                                                <input type="text" name="new_name" value="<?php echo htmlspecialchars($dir); ?>" size="8" 
+                                                    class="text-sm border border-neutral-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary">
+                                                <button type="submit" name="rename" class="text-sm text-primary hover:text-primary/80">
+                                                    <i class="fa fa-pencil"></i>
+                                                </button>
+                                            </form>
+                                            
+                                            <button onclick="confirmDelete('<?php echo htmlspecialchars($dir); ?>', 'dir')" 
+                                                class="text-sm text-danger hover:text-danger/80">
+                                                <i class="fa fa-trash"></i>
+                                            </button>
+                                            
+                                            <div class="relative inline-block">
+                                                <button onclick="toggleMoveMenu(this)" class="text-sm text-primary hover:text-primary/80">
+                                                    <i class="fa fa-arrows"></i>
+                                                </button>
+                                                <div class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-neutral-200 z-10">
+                                                    <form method="post" class="p-2">
+                                                        <input type="hidden" name="move_source" value="<?php echo htmlspecialchars($dir); ?>">
+                                                        <select name="move_target" class="w-full text-sm border border-neutral-200 rounded px-2 py-1 mb-2">
+                                                            <?php foreach ($all_dirs as $d): 
+                                                                if ($d == substr($dir_path, strlen($config['upload_dir']) + 1)) continue;
+                                                            ?>
+                                                                <option value="<?php echo htmlspecialchars($d); ?>"><?php echo htmlspecialchars($d); ?></option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                        <button type="submit" name="move" class="w-full text-xs bg-primary text-white rounded px-2 py-1 hover:bg-primary/90">
+                                                            移动
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -520,79 +645,176 @@ $all_dirs = getAllDirectories($config['upload_dir']);
                         // 获取文件详细信息
                         $file_details = getFileDetails($file_path);
                     ?>
-                        <div class="gallery-item">
-                            <?php if ($is_image): ?>
-                                <a href="<?php echo htmlspecialchars($file_path); ?>" target="_blank">
-                                    <img src="<?php echo htmlspecialchars($file_path); ?>" alt="<?php echo htmlspecialchars($file); ?>">
-                                </a>
-                            <?php else: ?>
-                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='100%25' height='100%25' fill='%23e0e0e0'/%3E%3Ctext x='100' y='75' text-anchor='middle' dominant-baseline='middle' font-family='Arial' font-size='14' fill='%23555'%3ENon-image File%3C/text%3E%3C/svg%3E" alt="非图片文件">
-                            <?php endif; ?>
-                            <div class="item-info">
-                                <div class="item-name"><?php echo htmlspecialchars($file); ?></div>
+                        <div class="bg-white rounded-xl shadow-card overflow-hidden card-transition scale-hover">
+                            <div class="relative h-48 overflow-hidden">
                                 <?php if ($is_image): ?>
-                                    <div class="item-details">
-                                        <?php echo $file_details['dimensions']; ?> | <?php echo $file_details['size']; ?>
+                                    <a href="<?php echo htmlspecialchars($file_path); ?>" target="_blank">
+                                        <img src="<?php echo htmlspecialchars($file_path); ?>" alt="<?php echo htmlspecialchars($file); ?>" 
+                                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-105">
+                                    </a>
+                                <?php else: ?>
+                                    <div class="w-full h-full bg-neutral-100 flex items-center justify-center">
+                                        <i class="fa fa-file text-5xl text-neutral-300"></i>
                                     </div>
                                 <?php endif; ?>
-                                <div class="item-actions">
-                                    <?php if ($is_image): ?>
-                                        <a href="<?php echo htmlspecialchars($file_path); ?>" target="_blank">查看原图</a>
-                                    <?php endif; ?>
+                                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white p-2">
+                                    <div class="text-xs truncate">
+                                        <?php echo htmlspecialchars($file); ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-4">
+                                <div class="flex justify-between items-center mb-2">
+                                    <h3 class="font-semibold text-lg truncate"><?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?></h3>
+                                    <span class="text-xs bg-<?php echo $is_image ? 'blue' : 'gray'; ?>/10 text-<?php echo $is_image ? 'blue' : 'gray'; ?>-600 px-2 py-1 rounded-full">
+                                        <i class="fa fa-<?php echo $is_image ? 'image' : 'file-o'; ?> mr-1"></i> 
+                                        <?php echo htmlspecialchars(pathinfo($file, PATHINFO_EXTENSION)); ?>
+                                    </span>
+                                </div>
+                                
+                                <?php if ($is_image): ?>
+                                    <div class="text-xs text-neutral-500 mb-2">
+                                        <span class="mr-3"><i class="fa fa-arrows-alt mr-1"></i> <?php echo $file_details['dimensions']; ?></span>
+                                        <span><i class="fa fa-file-text-o mr-1"></i> <?php echo $file_details['size']; ?></span>
+                                    </div>
+                                <?php endif; ?>
+                                
+                                <div class="flex flex-wrap gap-1">
+                                    <a href="<?php echo htmlspecialchars($file_path); ?>" target="_blank" 
+                                        class="text-sm text-primary hover:underline flex items-center">
+                                        <i class="fa fa-eye mr-1"></i> 查看
+                                    </a>
                                     
                                     <!-- 文件操作表单（仅对管理员可见） -->
                                     <?php if ($is_admin): ?>
-                                        <form method="post" style="display:inline;">
-                                            <input type="hidden" name="old_name" value="<?php echo htmlspecialchars($file); ?>">
-                                            <input type="text" name="new_name" value="<?php echo htmlspecialchars($file); ?>" size="8">
-                                            <button type="submit" name="rename" style="padding: 2px 5px;">重命名</button>
-                                        </form>
-                                        
-                                        <form method="post" style="display:inline;" onsubmit="return confirm('确定要删除此文件吗？');">
-                                            <input type="hidden" name="delete_path" value="<?php echo htmlspecialchars($file); ?>">
-                                            <button type="submit" name="delete" style="padding: 2px 5px;">删除</button>
-                                        </form>
-                                        
-                                        <form method="post" style="display:inline;">
-                                            <input type="hidden" name="move_source" value="<?php echo htmlspecialchars($file); ?>">
-                                            <select name="move_target" style="padding: 2px;">
-                                                <?php foreach ($all_dirs as $d): ?>
-                                                    <option value="<?php echo htmlspecialchars($d); ?>"><?php echo htmlspecialchars($d); ?></option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <button type="submit" name="move" style="padding: 2px 5px;">移动</button>
-                                        </form>
+                                        <div class="flex items-center gap-1">
+                                            <form method="post" class="inline-block">
+                                                <input type="hidden" name="old_name" value="<?php echo htmlspecialchars($file); ?>">
+                                                <input type="text" name="new_name" value="<?php echo htmlspecialchars(pathinfo($file, PATHINFO_FILENAME)); ?>" size="8" 
+                                                    class="text-sm border border-neutral-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary">
+                                                <input type="hidden" name="new_ext" value="<?php echo htmlspecialchars(pathinfo($file, PATHINFO_EXTENSION)); ?>">
+                                                <button type="submit" name="rename" class="text-sm text-primary hover:text-primary/80">
+                                                    <i class="fa fa-pencil"></i>
+                                                </button>
+                                            </form>
+                                            
+                                            <button onclick="confirmDelete('<?php echo htmlspecialchars($file); ?>', 'file')" 
+                                                class="text-sm text-danger hover:text-danger/80">
+                                                <i class="fa fa-trash"></i>
+                                            </button>
+                                            
+                                            <div class="relative inline-block">
+                                                <button onclick="toggleMoveMenu(this)" class="text-sm text-primary hover:text-primary/80">
+                                                    <i class="fa fa-arrows"></i>
+                                                </button>
+                                                <div class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-neutral-200 z-10">
+                                                    <form method="post" class="p-2">
+                                                        <input type="hidden" name="move_source" value="<?php echo htmlspecialchars($file); ?>">
+                                                        <select name="move_target" class="w-full text-sm border border-neutral-200 rounded px-2 py-1 mb-2">
+                                                            <?php foreach ($all_dirs as $d): 
+                                                                if ($d == substr($current_dir, strlen($config['upload_dir']) + 1)) continue;
+                                                            ?>
+                                                                <option value="<?php echo htmlspecialchars($d); ?>"><?php echo htmlspecialchars($d); ?></option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                        <button type="submit" name="move" class="w-full text-xs bg-primary text-white rounded px-2 py-1 hover:bg-primary/90">
+                                                            移动
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
                                     <?php endif; ?>
                                 </div>
                             </div>
                         </div>
                     <?php endforeach; ?>
                 </div>
+                
+                <!-- 页脚 -->
+                <footer class="mt-12 py-4 text-center text-neutral-500 text-sm">
+                    <p>© 2025 相册管理系统 | 总目录数: <?php echo count($dirs); ?> | 总文件数: <?php echo count($files); ?></p>
+                </footer>
             <?php endif; ?>
         <?php endif; ?>
     </div>
     
+    <!-- JavaScript -->
     <script>
-        // 图片预览功能
+        // 上传预览功能
         document.getElementById('image').addEventListener('change', function(e) {
-            const preview = document.getElementById('uploadPreview');
-            preview.innerHTML = '';
+            const previewContainer = document.querySelector('.upload-preview');
+            previewContainer.innerHTML = '';
             
-            const files = e.target.files;
-            if (files) {
-                Array.from(files).forEach(file => {
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        const img = document.createElement('img');
-                        img.src = e.target.result;
-                        img.alt = file.name;
-                        preview.appendChild(img);
-                    }
-                    
-                    reader.readAsDataURL(file);
-                });
+            for (let i = 0; i < e.target.files.length; i++) {
+                const file = e.target.files[i];
+                const reader = new FileReader();
+                
+                reader.onload = function(event) {
+                    const img = document.createElement('img');
+                    img.src = event.target.result;
+                    img.className = 'w-16 h-16 object-cover rounded border border-neutral-200';
+                    img.alt = file.name;
+                    previewContainer.appendChild(img);
+                }
+                
+                reader.readAsDataURL(file);
             }
+        });
+        
+        // 删除确认对话框
+        function confirmDelete(name, type) {
+            if (confirm(`确定要删除 ${type === 'dir' ? '目录' : '文件'} "${name}" 吗？此操作不可撤销。`)) {
+                const form = document.createElement('form');
+                form.method = 'post';
+                form.style.display = 'none';
+                
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'delete';
+                input.value = '1';
+                
+                const pathInput = document.createElement('input');
+                pathInput.type = 'hidden';
+                pathInput.name = 'delete_path';
+                pathInput.value = name;
+                
+                form.appendChild(input);
+                form.appendChild(pathInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
+        // 移动菜单切换
+        function toggleMoveMenu(button) {
+            const menu = button.nextElementSibling;
+            menu.classList.toggle('hidden');
+            
+            // 点击其他地方关闭菜单
+            document.addEventListener('click', function(event) {
+                if (!button.contains(event.target) && !menu.contains(event.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
+        }
+        
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 为所有重命名表单添加扩展名处理
+            document.querySelectorAll('form').forEach(form => {
+                if (form.querySelector('input[name="new_ext"]')) {
+                    form.addEventListener('submit', function(e) {
+                        const nameInput = this.querySelector('input[name="new_name"]');
+                        const extInput = this.querySelector('input[name="new_ext"]');
+                        
+                        // 如果用户删除了扩展名，自动添加
+                        if (nameInput.value.indexOf('.') === -1 && extInput.value) {
+                            nameInput.value += '.' + extInput.value;
+                        }
+                    });
+                }
+            });
         });
     </script>
 </body>
