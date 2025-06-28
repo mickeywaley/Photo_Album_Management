@@ -215,6 +215,38 @@ function getDirectoryPreview($dir_path) {
     return null;
 }
 
+// 辅助函数：获取文件详细信息
+function getFileDetails($file_path) {
+    $details = [
+        'size' => '',
+        'dimensions' => ''
+    ];
+    
+    // 获取文件大小
+    if (file_exists($file_path)) {
+        $size = filesize($file_path);
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $unit_index = 0;
+        
+        while ($size >= 1024 && $unit_index < count($units) - 1) {
+            $size /= 1024;
+            $unit_index++;
+        }
+        
+        $details['size'] = round($size, 2) . ' ' . $units[$unit_index];
+    }
+    
+    // 获取图片尺寸
+    $image_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    $file_info = @getimagesize($file_path);
+    
+    if ($file_info && in_array($file_info['mime'], $image_types)) {
+        $details['dimensions'] = $file_info[0] . ' × ' . $file_info[1] . ' px';
+    }
+    
+    return $details;
+}
+
 // 获取当前目录内容
 $dirs = [];
 $files = [];
@@ -277,6 +309,7 @@ $all_dirs = getAllDirectories($config['upload_dir']);
         .gallery-item img { width: 100%; height: 150px; object-fit: cover; }
         .gallery-item .item-info { padding: 10px; }
         .gallery-item .item-name { font-weight: bold; }
+        .gallery-item .item-details { font-size: 0.8em; color: #666; margin-top: 3px; }
         .gallery-item .item-actions { margin-top: 5px; font-size: 0.9em; }
         .gallery-item .item-actions a { color: #007BFF; margin-right: 10px; }
         .admin-panel { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }
@@ -483,6 +516,9 @@ $all_dirs = getAllDirectories($config['upload_dir']);
                         if ($file_info && in_array($file_info['mime'], $image_types)) {
                             $is_image = true;
                         }
+                        
+                        // 获取文件详细信息
+                        $file_details = getFileDetails($file_path);
                     ?>
                         <div class="gallery-item">
                             <?php if ($is_image): ?>
@@ -494,6 +530,11 @@ $all_dirs = getAllDirectories($config['upload_dir']);
                             <?php endif; ?>
                             <div class="item-info">
                                 <div class="item-name"><?php echo htmlspecialchars($file); ?></div>
+                                <?php if ($is_image): ?>
+                                    <div class="item-details">
+                                        <?php echo $file_details['dimensions']; ?> | <?php echo $file_details['size']; ?>
+                                    </div>
+                                <?php endif; ?>
                                 <div class="item-actions">
                                     <?php if ($is_image): ?>
                                         <a href="<?php echo htmlspecialchars($file_path); ?>" target="_blank">查看原图</a>
