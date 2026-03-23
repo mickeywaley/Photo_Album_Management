@@ -2,9 +2,9 @@
 $config = [
     'admin_password' => 'admin123',
     'upload_dir' => 'albums',
-    'thumb_dir' => 'thumbnails', // 缩略图统一目录
-    'thumb_width' => 400,       // 缩略图宽度（适配原有卡片）
-    'thumb_quality' => 85       // 缩略图质量（保证清晰）
+    'thumb_dir' => 'thumbnails',
+    'thumb_width' => 400,       // 恢复原缩略图尺寸，匹配卡片
+    'thumb_quality' => 85       // 保证清晰度
 ];
 
 // 自动创建目录
@@ -55,92 +55,61 @@ if (isset($_GET['dir'])) {
 }
 
 // ======================================
-// 缩略图生成核心函数（自动检查 + 生成）
-// 保持图片比例，不裁剪，完整显示
+// 缩略图核心函数（缓存+文件夹预览图支持）
 // ======================================
 function get_thumbnail($src_path, $thumb_path, $max_width, $quality) {
-    // 创建缩略图目录（如果不存在）
-    if (!file_exists(dirname($thumb_path))) {
-        mkdir(dirname($thumb_path), 0777, true);
-    }
-    
-    // 有缩略图直接返回
+    // 安全检查
+    if (!file_exists($src_path)) return $src_path;
+
+    // 缓存优先：已存在直接返回
     if (file_exists($thumb_path)) {
         return $thumb_path;
     }
 
-    // 获取原图信息
-    $info = @getimagesize($src_path);
-    if (!$info) {
-        return $src_path; // 非图片文件直接返回原图
+    // 创建缩略图目录（如果不存在）
+    if (!file_exists(dirname($thumb_path))) {
+        mkdir(dirname($thumb_path), 0777, true);
     }
+
+    $info = @getimagesize($src_path);
+    if (!$info) return $src_path;
     list($orig_w, $orig_h, $type) = $info;
 
-    // 计算缩略图尺寸（保持比例，不裁剪，最大宽度为设定值）
+    // 保持原比例，不裁剪
     $ratio = $max_width / $orig_w;
     $new_w = $max_width;
     $new_h = (int)($orig_h * $ratio);
 
-    // 按图片类型创建原图资源
+    // 按图片类型创建资源
     switch ($type) {
-        case 1: // GIF
-            $src = imagecreatefromgif($src_path);
-            break;
-        case 2: // JPEG
-            $src = imagecreatefromjpeg($src_path);
-            break;
-        case 3: // PNG
-            $src = imagecreatefrompng($src_path);
-            // 保留PNG透明背景
-            imagesavealpha($src, true);
-            $transparency = imagecolorallocatealpha($src, 0, 0, 0, 127);
-            imagefill($src, 0, 0, $transparency);
-            break;
-        case 18: // WebP
-            $src = imagecreatefromwebp($src_path);
-            break;
-        default:
-            return $src_path;
+        case 1: $src = imagecreatefromgif($src_path); break;
+        case 2: $src = imagecreatefromjpeg($src_path); break;
+        case 3: $src = imagecreatefrompng($src_path); imagesavealpha($src, true); break;
+        case 18: $src = imagecreatefromwebp($src_path); break;
+        default: return $src_path;
     }
 
-    // 创建缩略图画布（保持比例，不裁剪）
     $dst = imagecreatetruecolor($new_w, $new_h);
-    
-    // PNG/WebP 透明背景处理
+    // 透明背景处理
     if ($type === 3 || $type === 18) {
         imagesavealpha($dst, true);
         $transparency = imagecolorallocatealpha($dst, 0, 0, 0, 127);
         imagefill($dst, 0, 0, $transparency);
     }
 
-    // 缩放图片（保持比例，完整显示）
-    imagecopyresampled(
-        $dst, $src,
-        0, 0, 0, 0,
-        $new_w, $new_h,
-        $orig_w, $orig_h
-    );
+    // 生成缩略图
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $new_w, $new_h, $orig_w, $orig_h);
 
-    // 保存缩略图
+    // 保存图片
     switch ($type) {
-        case 1:
-            imagegif($dst, $thumb_path);
-            break;
-        case 2:
-            imagejpeg($dst, $thumb_path, $quality);
-            break;
-        case 3:
-            imagepng($dst, $thumb_path);
-            break;
-        case 18:
-            imagewebp($dst, $thumb_path, $quality);
-            break;
+        case 1: imagegif($dst, $thumb_path); break;
+        case 2: imagejpeg($dst, $thumb_path, $quality); break;
+        case 3: imagepng($dst, $thumb_path); break;
+        case 18: imagewebp($dst, $thumb_path, $quality); break;
     }
 
-    // 释放资源
     imagedestroy($src);
     imagedestroy($dst);
-    
     return $thumb_path;
 }
 
@@ -305,6 +274,7 @@ $all_images = array();
 foreach ($files as $f) {
     $all_images[] = $current_dir . '/' . $f;
 }
+$total_images = count($all_images);
 ?>
 
 <!DOCTYPE html>
@@ -326,10 +296,10 @@ foreach ($files as $f) {
         .card-transition { transition: all 0.3s ease; }
         .scale-hover { transition: transform 0.2s ease-in-out; }
         .scale-hover:hover { transform: scale(1.03); }
-        /* 关闭按钮样式优化 */
+        /* 关闭按钮样式 */
         .close-btn {
-            width: 50px;
-            height: 50px;
+            width: 44px;
+            height: 44px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -337,11 +307,17 @@ foreach ($files as $f) {
             background-color: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(4px);
             transition: all 0.2s ease;
-            z-index: 9999; /* 最高层级，避免被覆盖 */
+            z-index: 9999;
         }
         .close-btn:hover {
-            background-color: rgba(239, 68, 68, 0.9); /*  hover 变红，更醒目 */
+            background-color: rgba(239, 68, 68, 0.9);
             transform: scale(1.1);
+        }
+        /* 滑动区域优化 */
+        #swipeArea {
+            touch-action: pan-y;
+            user-select: none;
+            -webkit-user-select: none;
         }
     </style>
 </head>
@@ -385,7 +361,7 @@ foreach ($files as $f) {
         </div>
     <?php endif; ?>
 
-    <!-- 登录表单 -->
+    <!-- 登录/密码表单 -->
     <?php if (isset($_GET['login']) && !$is_admin): ?>
         <div class="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded-xl">
             <h3 class="text-lg font-bold mb-3">管理员登录</h3>
@@ -395,7 +371,6 @@ foreach ($files as $f) {
             </form>
         </div>
     <?php elseif ($album_is_protected && !$album_access_granted): ?>
-        <!-- 相册密码表单 -->
         <div class="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded-xl">
             <h3 class="text-lg font-bold mb-3">请输入相册密码</h3>
             <form method="post">
@@ -405,7 +380,7 @@ foreach ($files as $f) {
         </div>
     <?php else: ?>
 
-        <!-- 管理员操作面板（恢复原有布局） -->
+        <!-- 管理员操作面板（恢复原布局） -->
         <?php if ($is_admin): ?>
             <div class="bg-white dark:bg-gray-800 p-6 rounded-xl mb-6">
                 <h3 class="mb-3 font-bold">管理操作</h3>
@@ -447,7 +422,7 @@ foreach ($files as $f) {
                     </div>
                 </div>
 
-                <!-- 底部设置（友情链接/版权/GitHub） -->
+                <!-- 底部设置（恢复原布局） -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                     <div class="border dark:border-gray-700 rounded-lg p-4">
                         <h4 class="font-medium mb-3 text-blue-500">
@@ -482,9 +457,9 @@ foreach ($files as $f) {
             </div>
         <?php endif; ?>
 
-        <!-- 相册内容（恢复原有卡片布局，图片完整显示） -->
+        <!-- 相册内容（恢复原卡片布局+文件夹预览图） -->
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
-            <!-- 显示目录 -->
+            <!-- 显示目录（恢复文件夹预览图） -->
             <?php foreach ($dirs as $dir):
                 $dir_path = $current_dir.'/'.$dir;
                 $lock = file_exists($dir_path.'/.password');
@@ -537,11 +512,11 @@ foreach ($files as $f) {
             </div>
             <?php endforeach; ?>
 
-            <!-- 显示图片（使用缩略图，完整显示） -->
+            <!-- 显示图片（恢复原卡片样式） -->
             <?php foreach ($files as $k => $f):
                 $src_path = $current_dir . '/' . $f;
                 $thumb_path = str_replace($config['upload_dir'], $config['thumb_dir'], $src_path);
-                // 获取缩略图（自动生成/使用已有）
+                // 获取缩略图（使用缓存）
                 $show_img = get_thumbnail($src_path, $thumb_path, $config['thumb_width'], $config['thumb_quality']);
             ?>
             <div class="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow scale-hover card-transition">
@@ -568,7 +543,7 @@ foreach ($files as $f) {
     <?php endif; ?>
 </div>
 
-<!-- 底部友情链接 -->
+<!-- 底部（恢复原样式） -->
 <div class="bg-white dark:bg-gray-800 py-4 border-t dark:border-gray-700">
     <div class="max-w-7xl mx-auto px-4 text-center">
         <h3 class="text-sm font-bold mb-2">友情链接</h3>
@@ -584,8 +559,6 @@ foreach ($files as $f) {
         </div>
     </div>
 </div>
-
-<!-- 最底部版权 + GitHub -->
 <div class="bg-gray-100 dark:bg-gray-800 py-3 text-sm text-center text-gray-600 dark:text-gray-300 border-t dark:border-gray-700">
     <p><?php echo $copyright; ?></p>
     <p class="mt-1">
@@ -595,36 +568,27 @@ foreach ($files as $f) {
     </p>
 </div>
 
-<!-- 全屏预览器（核心修复：关闭按钮） -->
+<!-- 全屏预览器（修复滑动切换） -->
 <div id="viewer" class="fixed inset-0 bg-black/95 z-50 hidden flex flex-col items-center justify-center">
-    <!-- 右上角功能按钮组（分离关闭按钮，避免冲突） -->
     <div class="absolute top-4 right-4 flex gap-3 items-center">
-        <!-- 查看原图 + 下载 -->
         <div class="flex gap-3">
-            <a id="viewOriginal" target="_blank" class="text-white bg-blue-600 px-3 py-1 rounded flex items-center">
+            <a id="viewOriginal" target="_blank" class="text-white bg-blue-600 px-3 py-1 rounded flex items-center text-sm">
                 <i class="fa fa-eye mr-1"></i>查看原图
             </a>
-            <a id="downloadBtn" class="text-white bg-green-600 px-3 py-1 rounded flex items-center">
+            <a id="downloadBtn" class="text-white bg-green-600 px-3 py-1 rounded flex items-center text-sm">
                 <i class="fa fa-download mr-1"></i>下载
             </a>
         </div>
-        <!-- 关闭按钮（独立设置，放大+独立区域） -->
-        <button onclick="closeViewer()" class="close-btn text-white text-5xl">
-            ×
-        </button>
+        <button onclick="closeViewer()" class="close-btn text-white text-4xl">×</button>
     </div>
 
-    <!-- 图片区域（调整切换区域，避开关闭按钮） -->
+    <!-- 滑动区域（修复滑动功能） -->
     <div id="swipeArea" class="w-full h-full flex items-center justify-center relative">
-        <!-- 左右切换区域（缩小右侧区域，避免和关闭按钮重叠） -->
-        <div class="absolute left-0 top-0 w-1/2 h-full z-10" onclick="prev()"></div>
-        <div class="absolute right-20 top-0 w-[calc(50%-50px)] h-full z-10" onclick="next()"></div>
         <img id="viewerImg" class="max-h-[90vh] max-w-[90vw]">
     </div>
 
-    <!-- 图片索引 -->
     <div class="absolute bottom-4 text-white bg-black/50 px-3 py-1 rounded z-10">
-        <span id="imgIndex">1/1</span>
+        <span id="imgIndex">1/<?php echo $total_images; ?></span>
     </div>
 </div>
 
@@ -639,38 +603,39 @@ foreach ($files as $f) {
 
     // 上传进度
     const form = document.getElementById('uploadForm');
-    const fileInput = document.getElementById('fileInput');
-    const progressWrap = document.getElementById('progressWrap');
-    const progressBar = document.getElementById('progressBar');
     if(form){
         form.addEventListener('submit',(e)=>{
+            const progressWrap = document.getElementById('progressWrap');
+            const progressBar = document.getElementById('progressBar');
+            const fileInput = document.getElementById('fileInput');
             if(fileInput.files.length>0){
                 progressWrap.classList.remove('hidden');
-                const total = fileInput.files.length;
-                let loaded = 0;
+                let per = 0;
                 const interval = setInterval(()=>{
-                    loaded++;
-                    const per = Math.round((loaded/total)*100);
+                    per += 5;
+                    if(per>100) per=100;
                     progressBar.style.width = per+'%';
-                    if(loaded >= total) clearInterval(interval);
-                },300);
+                    if(per===100) clearInterval(interval);
+                },150);
             }
         });
     }
 
-    // 图片预览器核心
-    const images = <?php echo json_encode($all_images); ?>;
-    let index = 0;
+    // 图片预览器核心（修复滑动切换）
+    const allImages = <?php echo json_encode($all_images); ?>;
+    const totalImages = <?php echo $total_images; ?>;
+    let currentIndex = 0;
     const viewer = document.getElementById('viewer');
     const viewerImg = document.getElementById('viewerImg');
     const downloadBtn = document.getElementById('downloadBtn');
     const viewOriginal = document.getElementById('viewOriginal');
     const imgIndex = document.getElementById('imgIndex');
+    const swipeArea = document.getElementById('swipeArea');
 
-    // 打开预览（加载原图）
+    // 打开预览
     function openViewer(k){
-        index = k;
-        updateImage();
+        currentIndex = k;
+        updateViewerImage();
         viewer.classList.remove('hidden');
         viewer.focus();
     }
@@ -681,79 +646,103 @@ foreach ($files as $f) {
     }
 
     // 上一张/下一张
-    function prev(){
-        index = (index-1 + images.length) % images.length;
-        updateImage();
+    function prevImage(){
+        if(totalImages <= 1) return;
+        currentIndex = (currentIndex - 1 + totalImages) % totalImages;
+        updateViewerImage();
     }
-    function next(){
-        index = (index+1) % images.length;
-        updateImage();
+    function nextImage(){
+        if(totalImages <= 1) return;
+        currentIndex = (currentIndex + 1) % totalImages;
+        updateViewerImage();
     }
 
-    // 更新图片信息
-    function updateImage(){
-        if(images.length === 0) return;
-        const src = images[index];
+    // 更新图片
+    function updateViewerImage(){
+        if(totalImages === 0) return;
+        const src = allImages[currentIndex];
         const fileName = src.split('/').pop();
         
-        // 加载原图
         viewerImg.src = src;
         downloadBtn.href = src;
         downloadBtn.download = fileName;
         viewOriginal.href = src;
-        
-        // 更新索引
-        imgIndex.innerText = (index + 1) + '/' + images.length;
+        imgIndex.innerText = (currentIndex + 1) + '/' + totalImages;
     }
 
     // 键盘控制
     document.addEventListener('keydown',(e)=>{
         if(!viewer.classList.contains('hidden')){
-            if(e.key==='ArrowLeft' || e.key==='a') prev();
-            if(e.key==='ArrowRight' || e.key==='d') next();
-            if(e.key==='Escape') closeViewer();
+            if(e.key === 'ArrowLeft' || e.key === 'a') prevImage();
+            if(e.key === 'ArrowRight' || e.key === 'd') nextImage();
+            if(e.key === 'Escape') closeViewer();
             e.preventDefault();
         }
     });
 
-    // PC端鼠标拖拽切换
-    let mouseStartX = 0;
-    const swipeArea = document.getElementById('swipeArea');
-    swipeArea.addEventListener('mousedown',(e)=>{
-        mouseStartX = e.clientX;
-    });
-    swipeArea.addEventListener('mouseup',(e)=>{
-        const mouseEndX = e.clientX;
-        if(mouseEndX < mouseStartX - 50) next();
-        if(mouseEndX > mouseStartX + 50) prev();
-    });
-    viewerImg.addEventListener('dragstart',(e)=>{
-        e.preventDefault();
-    });
-
-    // 手机端滑动切换
+    // 手机端滑动（修复滑动功能）
     let touchStartX = 0;
     swipeArea.addEventListener('touchstart',(e)=>{
         touchStartX = e.changedTouches[0].screenX;
-    });
+    }, { passive: true });
+
     swipeArea.addEventListener('touchend',(e)=>{
-        touchEndX = e.changedTouches[0].screenX;
-        if(touchEndX < touchStartX - 50) next();
-        if(touchEndX > touchStartX + 50) prev();
+        const touchEndX = e.changedTouches[0].screenX;
+        const diffX = touchEndX - touchStartX;
+        // 滑动阈值30px，确保灵敏不误触
+        if(diffX < -30) nextImage();
+        if(diffX > 30) prevImage();
+    }, { passive: true });
+
+    // PC端拖拽（修复拖拽功能）
+    let isDragging = false;
+    let dragStartX = 0;
+    swipeArea.addEventListener('mousedown',(e)=>{
+        isDragging = true;
+        dragStartX = e.clientX;
+        swipeArea.style.cursor = 'grabbing';
     });
 
-    // 点击图片切换（左半部分上一张，右半部分下一张）
-    viewerImg.addEventListener('click',(e)=>{
-        const imgWidth = viewerImg.offsetWidth;
-        const clickX = e.clientX - viewerImg.getBoundingClientRect().left;
-        if(clickX < imgWidth / 2){
-            prev();
-        } else {
-            next();
+    swipeArea.addEventListener('mousemove',(e)=>{
+        if(isDragging){
+            const diffX = e.clientX - dragStartX;
+            viewerImg.style.transform = `translateX(${diffX}px)`;
         }
     });
 
-    // 点击空白区域关闭预览
+    swipeArea.addEventListener('mouseup',(e)=>{
+        if(isDragging){
+            const diffX = e.clientX - dragStartX;
+            if(Math.abs(diffX) > 30){
+                if(diffX < 0) nextImage();
+                if(diffX > 0) prevImage();
+            }
+            viewerImg.style.transform = 'translateX(0)';
+            isDragging = false;
+            swipeArea.style.cursor = 'grab';
+        }
+    });
+
+    swipeArea.addEventListener('mouseleave',()=>{
+        if(isDragging){
+            viewerImg.style.transform = 'translateX(0)';
+            isDragging = false;
+            swipeArea.style.cursor = 'grab';
+        }
+    });
+
+    // 点击图片切换（左半屏上一张，右半屏下一张）
+    viewerImg.addEventListener('click',(e)=>{
+        const imgRect = viewerImg.getBoundingClientRect();
+        const clickX = e.clientX - imgRect.left;
+        if(clickX < imgRect.width / 2){
+            prevImage();
+        } else {
+            nextImage();
+        }
+    });
+
+    // 点击空白关闭预览
     viewer.addEventListener('click',(e)=>{
         if(e.target === viewer){
             closeViewer();
@@ -770,6 +759,9 @@ foreach ($files as $f) {
             f.submit();
         }
     }
+
+    // 初始化鼠标样式
+    swipeArea.style.cursor = 'grab';
 </script>
 </body>
 </html>
