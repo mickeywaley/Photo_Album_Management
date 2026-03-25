@@ -43,38 +43,140 @@ $current_dir = $config['upload_dir'];
 $current_thumb_dir = $config['thumb_dir'];
 if (isset($_GET['dir'])) {
     $req = $config['upload_dir'].'/'.trim($_GET['dir'],'/');
-    if(is_dir($req) && strpos(realpath($req), realpath($config['upload_dir'])) === 0){
+    $real_upload = realpath($config['upload_dir']);
+    $real_req = realpath($req);
+    if(is_dir($req) && $real_req && $real_upload && strpos($real_req, $real_upload) === 0){
         $current_dir = $req;
         $current_thumb_dir = $config['thumb_dir'].'/'.trim($_GET['dir'],'/');
     }
 }
 
-function get_thumbnail($src, $thumb, $w, $q) {
-    if(!file_exists($src)) return $src;
-    if(file_exists($thumb)) return $thumb;
-    if(!file_exists(dirname($thumb))) mkdir(dirname($thumb),0777,true);
-    $info = @getimagesize($src); if(!$info) return $src;
-    list($ow,$oh,$t) = $info; $r=$w/$ow; $nw=$w; $nh=(int)($oh*$r);
-    switch($t){ case 1:$im=imagecreatefromgif($src);break;case 2:$im=imagecreatefromjpeg($src);break;case 3:$im=imagecreatefrompng($src);imagesavealpha($im,true);break;case 18:$im=imagecreatefromwebp($src);break;default:return $src; }
-    $dst=imagecreatetruecolor($nw,$nh); if($t==3||$t==18){imagesavealpha($dst,true);imagefill($dst,0,0,imagecolorallocatealpha($dst,0,0,0,127));}
-    imagecopyresampled($dst,$im,0,0,0,0,$nw,$nh,$ow,$oh);
-    switch($t){ case 1:imagegif($dst,$thumb);break;case 2:imagejpeg($dst,$thumb,$q);break;case 3:imagepng($dst,$thumb);break;case 18:imagewebp($dst,$thumb,$q);break; }
-    imagedestroy($im);imagedestroy($dst);return $thumb;
+function create_thumbnail($src, $thumb, $w, $q) {
+    if (!file_exists($src)) return false;
+    if (file_exists($thumb)) return true;
+    
+    $thumb_dir = dirname($thumb);
+    if (!file_exists($thumb_dir)) mkdir($thumb_dir, 0777, true);
+    
+    $info = getimagesize($src);
+    if (!$info) return false;
+    
+    list($ow, $oh, $type) = $info;
+    $ratio = $w / $ow;
+    $nw = $w;
+    $nh = (int)($oh * $ratio);
+    
+    switch ($type) {
+        case 1: $im = imagecreatefromgif($src); break;
+        case 2: $im = imagecreatefromjpeg($src); break;
+        case 3: $im = imagecreatefrompng($src); imagesavealpha($im, true); break;
+        case 18: $im = imagecreatefromwebp($src); break;
+        default: return false;
+    }
+    
+    $dst = imagecreatetruecolor($nw, $nh);
+    if ($type == 3 || $type == 18) {
+        imagesavealpha($dst, true);
+        imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 0,0,0,127));
+    }
+    
+    imagecopyresampled($dst, $im, 0,0,0,0, $nw,$nh, $ow,$oh);
+    
+    switch ($type) {
+        case 1: imagegif($dst, $thumb); break;
+        case 2: imagejpeg($dst, $thumb, $q); break;
+        case 3: imagepng($dst, $thumb); break;
+        case 18: imagewebp($dst, $thumb, $q); break;
+    }
+    
+    imagedestroy($im);
+    imagedestroy($dst);
+    return true;
+}
+
+function get_thumb_path($src, $upload_dir, $thumb_dir) {
+    return str_replace($upload_dir, $thumb_dir, $src);
 }
 
 $album_locked = file_exists($current_dir.'/.password');
 $album_ok = true;
-if($album_locked){ $album_ok = isset($_SESSION['album'][$current_dir]);
-    if(isset($_POST['pass'])){ if(password_verify($_POST['pass'],file_get_contents($current_dir.'/.password'))){ $_SESSION['album'][$current_dir]=true;header('Location:'.$_SERVER['REQUEST_URI']);exit; }}}
+if($album_locked){
+    $album_ok = isset($_SESSION['album'][$current_dir]);
+    if(isset($_POST['pass'])){
+        if(password_verify($_POST['pass'],file_get_contents($current_dir.'/.password'))){
+            $_SESSION['album'][$current_dir]=true;
+            header('Location:'.$_SERVER['REQUEST_URI']);
+            exit;
+        }
+    }
+}
 
-if($is_admin && isset($_POST['upload'])){ foreach($_FILES['image']['tmp_name'] as $i=>$tmp){ $n=basename($_FILES['image']['name'][$i]); if($tmp&&@getimagesize($tmp))move_uploaded_file($tmp,$current_dir.'/'.$n); } header('Location:'.$_SERVER['REQUEST_URI']);exit; }
-if($is_admin && isset($_POST['new_dir'])){ $d=$current_dir.'/'.$_POST['dname'];if(!file_exists($d))mkdir($d,0777,true);header('Location:'.$_SERVER['REQUEST_URI']);exit;}
-if($is_admin && isset($_POST['set_album_pass'])){ $f=$current_dir.'/.password';empty($_POST['pass'])?@unlink($f):file_put_contents($f,password_hash($_POST['pass'],PASSWORD_DEFAULT));header('Location:'.$_SERVER['REQUEST_URI']);exit;}
-if($is_admin && isset($_POST['rename'])){ $o=$current_dir.'/'.$_POST['old'];$n=$current_dir.'/'.$_POST['new'];rename($o,$n);$t1=str_replace($config['upload_dir'],$config['thumb_dir'],$o);$t2=str_replace($config['upload_dir'],$config['thumb_dir'],$n);if(file_exists($t1))rename($t1,$t2);header('Location:'.$_SERVER['REQUEST_URI']);exit;}
-if($is_admin && isset($_POST['delete'])){ $t=$_POST['target'];$p=$current_dir.'/'.$t;if(is_file($p)){unlink($p);@unlink(str_replace($config['upload_dir'],$config['thumb_dir'],$p));}else{function r($d){$h=scandir($d);foreach($h as $i){if($i=='.'||$i=='..')continue;$f=$d.'/'.$i;is_dir($f)?r($f):unlink($f);}rmdir($d);}r($p);@r(str_replace($config['upload_dir'],$config['thumb_dir'],$p));}header('Location:'.$_SERVER['REQUEST_URI']);exit;}
+if($is_admin && isset($_POST['upload'])){
+    foreach($_FILES['image']['tmp_name'] as $i=>$tmp){
+        $name = basename($_FILES['image']['name'][$i]);
+        $target = $current_dir.'/'.$name;
+        if($tmp && getimagesize($tmp)){
+            move_uploaded_file($tmp, $target);
+            $thumb = get_thumb_path($target, $config['upload_dir'], $config['thumb_dir']);
+            create_thumbnail($target, $thumb, $config['thumb_width'], $config['thumb_quality']);
+        }
+    }
+    header('Location:'.$_SERVER['REQUEST_URI']);
+    exit;
+}
+
+if($is_admin && isset($_POST['new_dir'])){
+    $d=$current_dir.'/'.$_POST['dname'];
+    if(!file_exists($d))mkdir($d,0777,true);
+    header('Location:'.$_SERVER['REQUEST_URI']);exit;
+}
+
+if($is_admin && isset($_POST['set_album_pass'])){
+    $f=$current_dir.'/.password';
+    empty($_POST['pass'])?@unlink($f):file_put_contents($f,password_hash($_POST['pass'],PASSWORD_DEFAULT));
+    header('Location:'.$_SERVER['REQUEST_URI']);exit;
+}
+
+if($is_admin && isset($_POST['rename'])){
+    $o=$current_dir.'/'.$_POST['old'];
+    $n=$current_dir.'/'.$_POST['new'];
+    rename($o,$n);
+    $t1=str_replace($config['upload_dir'],$config['thumb_dir'],$o);
+    $t2=str_replace($config['upload_dir'],$config['thumb_dir'],$n);
+    if(file_exists($t1))rename($t1,$t2);
+    header('Location:'.$_SERVER['REQUEST_URI']);exit;
+}
+
+if($is_admin && isset($_POST['delete'])){
+    $t=$_POST['target'];
+    $p=$current_dir.'/'.$t;
+    if(is_file($p)){
+        unlink($p);
+        $tfile = str_replace($config['upload_dir'],$config['thumb_dir'],$p);
+        if(file_exists($tfile)) unlink($tfile);
+    }else{
+        function r($d){
+            $h=scandir($d);
+            foreach($h as $i){
+                if($i=='.'||$i=='..')continue;
+                $f=$d.'/'.$i;
+                is_dir($f)?r($f):unlink($f);
+            }
+            rmdir($d);
+        }
+        r($p);
+        $tpath = str_replace($config['upload_dir'],$config['thumb_dir'],$p);
+        if(file_exists($tpath)) @r($tpath);
+    }
+    header('Location:'.$_SERVER['REQUEST_URI']);exit;
+}
 
 $dirs=[];$files=[];
-foreach(scandir($current_dir) as $i){ if($i=='.'||$i=='..'||$i=='.password')continue; $p=$current_dir.'/'.$i; is_dir($p)?$dirs[]=$i:$files[]=$i; }
+foreach(scandir($current_dir) as $i){
+    if($i=='.'||$i=='..'||$i=='.password')continue;
+    $p=$current_dir.'/'.$i;
+    is_dir($p)?$dirs[]=$i:$files[]=$i;
+}
 
 $all_imgs=[];
 foreach($files as $f) $all_imgs[] = $current_dir.'/'.$f;
@@ -236,7 +338,7 @@ $total=count($all_imgs);
                 foreach (scandir($dir_path) as $item) {
                     if ($item === '.' || $item === '..' || $item === '.password') continue;
                     $item_path = $dir_path.'/'.$item;
-                    if (is_file($item_path) && @getimagesize($item_path)) {
+                    if (is_file($item_path) && getimagesize($item_path)) {
                         $preview_image = $item_path;
                         break;
                     }
@@ -249,10 +351,12 @@ $total=count($all_imgs);
                     <?php endif; ?>
                     <a href="?dir=<?php echo urlencode(str_replace($config['upload_dir'].'/', '', $dir_path)); ?>">
                         <?php if ($preview_image):
-                            $pt = str_replace($config['upload_dir'], $config['thumb_dir'], $preview_image);
-                            $ps = get_thumbnail($preview_image, $pt, $config['thumb_width'], $config['thumb_quality']);
+                            $show = get_thumb_path($preview_image, $config['upload_dir'], $config['thumb_dir']);
+                            if (!file_exists($show)) {
+                                create_thumbnail($preview_image, $show, $config['thumb_width'], $config['thumb_quality']);
+                            }
                         ?>
-                            <img src="<?php echo $ps; ?>" class="img-box w-full <?php echo $lock ? 'blur-lock' : ''; ?>">
+                            <img src="<?php echo $show; ?>" class="img-box w-full <?php echo $lock ? 'blur-lock' : ''; ?>">
                         <?php else: ?>
                             <div class="img-box flex items-center justify-center bg-gray-100 dark:bg-gray-700">
                                 <i class="fa fa-folder text-4xl text-gray-300"></i>
@@ -278,8 +382,10 @@ $total=count($all_imgs);
 
             <?php foreach ($files as $k => $f):
                 $src = $current_dir . '/' . $f;
-                $thumb = str_replace($config['upload_dir'], $config['thumb_dir'], $src);
-                $show = get_thumbnail($src, $thumb, $config['thumb_width'], $config['thumb_quality']);
+                $show = get_thumb_path($src, $config['upload_dir'], $config['thumb_dir']);
+                if (!file_exists($show)) {
+                    create_thumbnail($src, $show, $config['thumb_width'], $config['thumb_quality']);
+                }
             ?>
             <div class="photo-item bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow scale-hover card-transition" data-path="<?php echo htmlspecialchars($src); ?>">
                 <input type="checkbox" class="photo-checkbox">
