@@ -1,6 +1,7 @@
 # Photo_Album_Management
 
 1.1.7
+
 添加 下载，批量下载，选择下载 功能
 
 添加 相册加密功能
